@@ -1,4 +1,9 @@
 /**
+ * NeoJS framework V1.8.
+ * @author Nick Hartskeerl <apachenick@hotmail.com>
+ */
+
+/**
  * A class representing the NeoJS framework.
  * @param _arguments The given argument properties.
  * @constructor
