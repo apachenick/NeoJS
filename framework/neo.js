@@ -1,5 +1,5 @@
 /**
- * NeoJS framework V1.8.
+ * NeoJS framework V1.9.
  * @author Nick Hartskeerl <apachenick@hotmail.com>
  */
 
@@ -188,7 +188,7 @@ var Neo = function(_arguments) {
     /**
      * Register a new plug-in for the NeoJS framework.
      * @param plugin The plug-in name.
-     * @param arguments {*=} The arguments to pass on.
+     * @param __arguments {*=} The arguments to pass on.
      * @param _function {*=} The callback function.
      * @returns {*}
      */
@@ -204,7 +204,6 @@ var Neo = function(_arguments) {
 
         if(global.isFunction(__arguments)) {
             _function = __arguments;
-            delete __arguments;
         }
 
         this.include(_arguments['plugin_folder']+"/"+plugin+"/"+plugin+".js", function() {
@@ -304,7 +303,7 @@ var Neo = function(_arguments) {
 
     /**
      * Get the scale ratio per pixel the device.
-     * @returns {number}
+     * @returns {number} The scale ratio.
      */
     this.scaleRatio = function() {
 
@@ -318,6 +317,18 @@ var Neo = function(_arguments) {
 
         return ratio;
 
+    };
+
+    /**
+     * Get the parameter of the search URL.
+     * @param name The parameter name.
+     * @returns {string} The parameter value.
+     */
+    this.getURLParameter = function(name, url) {
+        name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+        var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
+        var results = regex.exec(url || location.search);
+        return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
     };
 
     /**
@@ -417,6 +428,83 @@ var Neo = function(_arguments) {
     };
 
     /**
+     * Pluck values from an array by key.
+     * @param array The array to pluck from.
+     * @param key The key to look for.
+     */
+    this.pluck = function(array, key) {
+        var found = [];
+        for(var i in array) {
+            if(i == key) {
+                found.push(array[i]);
+            }
+        }
+    };
+
+    /**
+     * Get the smallest number found in an array.
+     * @param array The array.
+     * @returns {T}
+     */
+    this.smallest = function(array) {
+        var clone = array;
+        return clone.sort(function(x, y) {
+            return x - y;
+        })[0];
+    };
+
+    /**
+     * Get the smallest number found in an array.
+     * @param array The array.
+     * @returns {T}
+     */
+    this.biggest = function(array) {
+        var clone = array;
+        return clone.sort(function(x, y) {
+            return x + y;
+        })[0];
+    };
+
+    /**
+     * Shuffle an array.
+     * @param array The array.
+     */
+    this.shuffle = function(array){
+        var count = array.length, random, i;
+        while(count) {
+            random = Math.random() * count-- | 0;
+            i = array[count];
+            array[count] = array[random];
+            array[random] = i
+        }
+        return array;
+    };
+
+    /**
+     * Check if an object contains the given needle.
+     * @param object The object.
+     * @param needle The needle.
+     * @returns {boolean}
+     */
+    this.contains = function(object, needle) {
+        if(global.isArray(object)) {
+            return global.arrayContains(object, needle);
+        } else if(global.isString(object)) {
+            return object.indexOf(needle) !== -1;
+        }
+        return false;
+    };
+
+    /**
+     * Convert an array string to an array.
+     * @param string The array string.
+     * @returns {Object}
+     */
+    this.stringToArray = function(string) {
+        return eval("("+string+")");
+    };
+
+    /**
 	 * Call a function repeatedly for a specified duration.
 	 * @param _function the function to call
 	 * @param timeout The time to count down towards.
@@ -447,10 +535,11 @@ var Neo = function(_arguments) {
      * Scroll to the given vertical scroll top.
      * @param top The vertical top.
      * @param time The time in milliseconds.
+     * @param easing The easing equation method.
      * @param complete The function called once completed.
      * @param node The DOM node we're going to scroll.
      */
-    this.scrollTop = function(top, time, complete, node) {
+    this.scrollTop = function(top, time, easing, complete, node) {
 
         if(!global.isDefined(node)) {
             node = window;
@@ -460,11 +549,15 @@ var Neo = function(_arguments) {
             node = node.origin;
         }
 
+        if(!global.isDefined(easing)) {
+            easing = "linearTween";
+        }
+
         var currentTop = global.scroll().vertical;
         var difference = top - currentTop;
 
         global.repeatCall(function(percentage) {
-            node.scrollTo(0, currentTop + (difference * percentage));
+            node.scrollTo(0, global[easing](time * percentage, currentTop, difference * percentage, time));
         }, time || 600, complete);
 
     };
@@ -473,10 +566,11 @@ var Neo = function(_arguments) {
      * Scroll to the given horizontal scroll left.
      * @param left The horizontal left.
      * @param time The time in milliseconds.
+     * @param easing The easing equation method.
      * @param complete The function called once completed.
      * @param node The DOM node we're going to scroll.
      */
-    this.scrollLeft = function(left, time, complete, node) {
+    this.scrollLeft = function(left, time, easing, complete, node) {
 
         if(!global.isDefined(node)) {
             node = window;
@@ -486,11 +580,15 @@ var Neo = function(_arguments) {
             node = node.origin;
         }
 
+        if(!global.isDefined(easing)) {
+            easing = "linearTween";
+        }
+
         var currentLeft = global.scroll().horizontal;
         var difference = left - currentLeft;
 
         global.repeatCall(function(percentage) {
-            node.scrollTo(currentLeft + (difference * percentage), 0);
+            node.scrollTo(global[easing](time * percentage, currentLeft, difference * percentage, time), 0);
         }, time || 600, complete);
 
     };
@@ -1421,13 +1519,45 @@ var Neo = function(_arguments) {
         };
 
         /**
-         * Append a node after this node.
+         * Prepend a node before this node's first child.
+         * @param _node The node reference.
+         * @returns {Neo.node}
+         */
+        this.prepend = function(_node) {
+
+            if(global.isNode(_node)) {
+                _node = _node.origin;
+            }
+
+            var children = self.children();
+
+            if(children.size() == 0) {
+                self.append(_node);
+            } else {
+                self.origin.insertBefore(children.first().origin, _node);
+            }
+
+            delete children;
+
+            return self;
+
+        };
+
+        /**
+         * Append a node to the of this node.
          * @param _node The node reference.
          * @returns {Neo.node}
          */
         this.append = function(_node) {
-            self.origin.appendChild(_node.origin);
+
+            if(global.isNode(_node)) {
+                _node = _node.origin;
+            }
+
+            self.origin.appendChild(_node);
+
             return self;
+
         };
 
         /**
@@ -1540,20 +1670,22 @@ var Neo = function(_arguments) {
          * Scroll to the given vertical scroll top.
          * @param top The vertical top.
          * @param time The time in milliseconds.
+         * @param easing The easing equation method.
          * @param complete The function called once completed.
          */
-        this.scrollTop = function(top, time, complete) {
-            global.scrollTop(top, time, complete, self.origin);
+        this.scrollTop = function(top, time, easing, complete) {
+            global.scrollTop(top, time, easing, complete, self.origin);
         };
 
         /**
          * Scroll to the given horizontal scroll left.
          * @param left The horizontal left.
          * @param time The time in milliseconds.
+         * @param easing The easing equation method.
          * @param complete The function called once completed.
          */
-        this.scrollLeft = function(left, time, complete) {
-            global.scrollLeft(left, time, complete, self.origin);
+        this.scrollLeft = function(left, time, easing, complete) {
+            global.scrollLeft(left, time, easing, complete, self.origin);
         };
 
         /**
@@ -1566,7 +1698,7 @@ var Neo = function(_arguments) {
 
         /**
          * Get the selected option for a select element node.
-         * @returns {*}
+         * @returns {{value: string, text: string}}
          */
         this.selectedOption = function() {
             return self.options()[self.origin.selectedIndex];
@@ -1982,28 +2114,20 @@ var Neo = function(_arguments) {
         this.attributes = [];
 
         if(global.isDefined(node.events)) {
-
             for (var keys = Object.keys(node.events), i = 0; i < keys.length; i++) {
                 for (var j = 0; j < node.events[keys[i]].length; j++) {
                     this.events[keys[i]] = [];
                     this.events[keys[i]][j] = node.events[keys[i]][j];
                 }
             }
-
         }
 
         if(!global.isNull(node.origin) && global.isDefined(node.origin.attributes)) {
-
             for (var i = 0; i < node.origin.attributes.length; i++) {
-
                 var attribute = node.origin.attributes[i];
-
                 this.attributes[i] = [attribute.nodeName, global.isDefined(attribute.value) ? attribute.value : attribute.nodeValue];
-
                 delete attribute;
-
             }
-
         }
 
         delete node;
@@ -2100,9 +2224,7 @@ var Neo = function(_arguments) {
             var length = start + name.length + 1;
 
             if((!start) && (name != document.cookie.substring(0, name.length))) {
-
                 return null;
-
             }
 
             if(start == -1) {
@@ -2350,6 +2472,8 @@ var Neo = function(_arguments) {
      */
     var color = function(string) {
 
+        "use strict";
+
         if(string.charAt(0) == "#") {
             string = string.substr(1, 6);
         }
@@ -2357,7 +2481,7 @@ var Neo = function(_arguments) {
         string = string.replace(/ /g,'').toLowerCase();
 
         /**
-         * The color names with the according color formated in HEX.
+         * The color names with the according color formatted in HEX.
          * @type {{aliceblue: string, antiquewhite: string, aqua: string, aquamarine: string, azure: string, beige: string, bisque: string, black: string, blanchedalmond: string, blue: string, blueviolet: string, brown: string, burlywood: string, cadetblue: string, chartreuse: string, chocolate: string, coral: string, cornflowerblue: string, cornsilk: string, crimson: string, cyan: string, darkblue: string, darkcyan: string, darkgoldenrod: string, darkgray: string, darkgreen: string, darkkhaki: string, darkmagenta: string, darkolivegreen: string, darkorange: string, darkorchid: string, darkred: string, darksalmon: string, darkseagreen: string, darkslateblue: string, darkslategray: string, darkturquoise: string, darkviolet: string, deeppink: string, deepskyblue: string, dimgray: string, dodgerblue: string, feldspar: string, firebrick: string, floralwhite: string, forestgreen: string, fuchsia: string, gainsboro: string, ghostwhite: string, gold: string, goldenrod: string, gray: string, green: string, greenyellow: string, honeydew: string, hotpink: string, indianred: string, indigo: string, ivory: string, khaki: string, lavender: string, lavenderblush: string, lawngreen: string, lemonchiffon: string, lightblue: string, lightcoral: string, lightcyan: string, lightgoldenrodyellow: string, lightgrey: string, lightgreen: string, lightpink: string, lightsalmon: string, lightseagreen: string, lightskyblue: string, lightslateblue: string, lightslategray: string, lightsteelblue: string, lightyellow: string, lime: string, limegreen: string, linen: string, magenta: string, maroon: string, mediumaquamarine: string, mediumblue: string, mediumorchid: string, mediumpurple: string, mediumseagreen: string, mediumslateblue: string, mediumspringgreen: string, mediumturquoise: string, mediumvioletred: string, midnightblue: string, mintcream: string, mistyrose: string, moccasin: string, navajowhite: string, navy: string, oldlace: string, olive: string, olivedrab: string, orange: string, orangered: string, orchid: string, palegoldenrod: string, palegreen: string, paleturquoise: string, palevioletred: string, papayawhip: string, peachpuff: string, peru: string, pink: string, plum: string, powderblue: string, purple: string, red: string, rosybrown: string, royalblue: string, saddlebrown: string, salmon: string, sandybrown: string, seagreen: string, seashell: string, sienna: string, silver: string, skyblue: string, slateblue: string, slategray: string, snow: string, springgreen: string, steelblue: string, tan: string, teal: string, thistle: string, tomato: string, turquoise: string, violet: string, violetred: string, wheat: string, white: string, whitesmoke: string, yellow: string, yellowgreen: string}}
          */
         var color_names = {
@@ -2584,10 +2708,18 @@ var Neo = function(_arguments) {
         this.green = (this.green < 0 || isNaN(this.green)) ? 0 : ((this.green > 255) ? 255 : this.green);
         this.blue = (this.blue < 0 || isNaN(this.blue)) ? 0 : ((this.blue > 255) ? 255 : this.blue);
 
+        /**
+         * Convert the color to RGB syntax.
+         * @returns {string}
+         */
         this.toRGB = function() {
             return "rgb("+this.red+", "+this.green+", "+this.blue+")";
         };
 
+        /**
+         * Convert the color to a hexadecimal.
+         * @returns {string}
+         */
         this.toHex = function () {
 
             var red = this.red.toString(16);
@@ -2612,5 +2744,368 @@ var Neo = function(_arguments) {
 
     };
 
+    /**
+     * A class function representing a deferred object.
+     */
+    var deferred = function() {
+
+        /**
+         * A reference of the deferred instance.
+         * @type {Neo.deferred}
+         */
+        var self = this;
+
+        /**
+         * The registered deferred events.
+         * @type {Array}
+         */
+        this.events = [];
+
+        /**
+         * Bind a given event to the deferred instance.
+         * @param event The event name.
+         * @param _function The callback function.
+         */
+        this.bind = function(event, _function) {
+            if(!(event in self.events)) {
+                self.events[event] = [];
+            }
+            self.events[event].push(_function);
+        };
+
+        /**
+         * Release a success event.
+         */
+        this.release = function() {
+            self.dispatch("success");
+        };
+
+        /**
+         * Dispatch the fail event.
+         */
+        this.reject = function() {
+            self.dispatch("fail");
+        };
+
+        /**
+         * Dispatch a deferred related event.
+         * @param event The event name.
+         */
+        this.dispatch = function(event) {
+            var events = self.events[event];
+            for(var i = 0; i < events.length; i++) {
+                events[i]();
+            }
+        }
+
+    };
+
+    /**
+     * The simple linear tween easing equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.linearTween = function(time, start, change, duration) {
+        return change * time / duration + start;
+    };
+
+    /**
+     * The quadratic easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInQuad = function(time, start, change, duration) {
+        time /= duration;
+        return change * time * time + start;
+    };
+
+    /**
+     * The quadratic easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutQuad = function(time, start, change, duration) {
+        time /= duration;
+        return -change * time * (time - 2) + start;
+    };
+
+    /**
+     * The quadratic easing in and out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutQuad = function(time, start, change, duration) {
+        time /= duration / 2;
+        if(time < 1) {
+            return change /2 * time * time + start;
+        }
+        time--;
+        return -change/2 * (time * (time - 2) - 1) + start;
+    };
+
+    /**
+     * The ease in in cubic equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInCubic = function(time, start, change, duration) {
+        time /= duration;
+        return change * time * time * time + start;
+    };
+
+    /**
+     * The ease out cubic equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutCubic = function(time, start, change, duration) {
+        time /= duration;
+        time--;
+        return change * (time * time * time + 1) + start;
+    };
+
+    /**
+     * The ease in and out cubic equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutCubic = function(time, start, change, duration) {
+        time /= duration/2;
+        if(time < 1) {
+            return change / 2 * time * time * time + start;
+        }
+        time -= 2;
+        return change / 2 * (time * time * time + 2) + start;
+    };
+
+    /**
+     * The quartic easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInQuart = function(time, start, change, duration) {
+        time /= duration;
+        return change * time * time * time * time + start;
+    };
+
+    /**
+     * The quartic easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutQuart = function(time, start, change, duration) {
+        time /= duration;
+        time--;
+        return -change * (time * time * time * time - 1) + start;
+    };
+
+    /**
+     * The quartic easing in and out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutQuart = function(time, start, change, duration) {
+        time /= duration / 2;
+        if(time < 1) {
+            return change / 2 * time * time * time * time + start;
+        }
+        time -= 2;
+        return -change / 2 * (time * time * time * time - 2) + start;
+    };
+
+    /**
+     * The quintic easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInQuint = function (time, start, change, duration) {
+        time /= duration;
+        return change * time * time * time * time * time + start;
+    };
+
+    /**
+     * The quintic easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutQuint = function (time, start, change, duration) {
+        time /= duration;
+        time--;
+        return change * (time * time * time * time * time + 1) + start;
+    };
+
+    /**
+     * The quintic easing in out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutQuint = function (time, start, change, duration) {
+        time /= duration / 2;
+        if(time < 1) {
+            return change / 2 * time * time * time * time * time + start;
+        }
+        time -= 2;
+        return change / 2 * (time * time * time * time * time + 2) + start;
+    };
+
+    /**
+     * The sinusoidal easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInSine = function (time, start, change, duration) {
+        return -change * Math.cos(time / duration * (Math.PI / 2)) + change + start;
+    };
+
+    /**
+     * The sinusoidal easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutSine = function (time, start, change, duration) {
+        return change * Math.sin(time / duration * (Math.PI / 2)) + start;
+    };
+
+    /**
+     * The sinusoidal easing in and out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutSine = function (time, start, change, duration) {
+        return -change / 2 * (Math.cos(Math.PI * time / duration) - 1) + start;
+    };
+
+    /**
+     * The exponential easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInExpo = function (time, start, change, duration) {
+        return change * Math.pow( 2, 10 * (time / duration - 1)) + start;
+    };
+
+    /**
+     * The exponential easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutExpo = function (time, start, change, duration) {
+        return change * (-Math.pow( 2, -10 * time / duration) + 1) + start;
+    };
+
+    /**
+     * The exponential easing in and out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutExpo = function (time, start, change, duration) {
+        time /= duration / 2;
+        if(time < 1) {
+            return change / 2 * Math.pow(2, 10 * (time - 1)) + start;
+        }
+        time--;
+        return change / 2 * (-Math.pow(2, -10 * time) + 2) + start;
+    };
+
+    /**
+     * The circular easing in equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInCirc = function (time, start, change, duration) {
+        time /= duration;
+        return -change * (Math.sqrt(1 - time * time) - 1) + start;
+    };
+
+    /**
+     * The circular easing out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeOutCirc = function (time, start, change, duration) {
+        time /= duration;
+        time--;
+        return change * Math.sqrt(1 - time * time) + start;
+    };
+
+    /**
+     * The circular easing in and out equation.
+     * @param time The start time.
+     * @param start The start value.
+     * @param change The change value.
+     * @param duration The duration in time.
+     * @returns {*}
+     */
+    this.easeInOutCirc = function (time, start, change, duration) {
+        time /= duration / 2;
+        if(time < 1) {
+            return -change / 2 * (Math.sqrt(1 - time * time) - 1) + start;
+        }
+        time -= 2;
+        return change / 2 * (Math.sqrt(1 - time * time) + 1) + start;
+    };
 
 };
